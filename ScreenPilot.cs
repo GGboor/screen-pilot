@@ -176,7 +176,7 @@ namespace ScreenPilot
                 inventoryClock.Restart();
                 if(layoutMemory.ConnectedKeys.Count>0 && !new HashSet<string>(layoutMemory.ConnectedKeys).SetEquals(monitors.Select(m=>m.Key))) connectionSettling.Restart();
                 layoutMemory.Observe(data,monitors,connectionSettling.IsRunning && connectionSettling.ElapsedMilliseconds<12000);
-                layoutMemory.Save();
+                layoutMemory.TrySave();
                 monitors = monitors.OrderBy(m => stableOrder.IndexOf(m.Key)).ToList();
                 layoutView.UpdateScreens(monitors,Number);
                 rebuilding = true;
@@ -208,6 +208,7 @@ namespace ScreenPilot
                 status.Text = "检测到 " + monitors.Count + " 块屏幕，" + monitors.Count(m => m.Active) + " 块已开启。自动检测插拔，已知屏幕编号保持不变。";
                 if(protect!=null && !monitors.Any(m=>m.Key==protect)) status.Text="受保护的串流屏幕已拔出，请在上方重新选择保护对象。";
                 summary.Text = monitors.Count + " 个屏幕   ·   " + monitors.Count(m => m.Active) + " 个已开启";
+                status.Text += DataWarning();
                 UpdateTray();
             }
             catch (Exception e) { rebuilding = false; Error(e); }
@@ -276,7 +277,7 @@ namespace ScreenPilot
                 if (selected.Count == 0) throw new InvalidOperationException("至少保留一个开启的屏幕，不能全部关闭。");
                 if (ProtectedKey != null && !selected.Contains(ProtectedKey)) throw new InvalidOperationException("此操作会关闭受保护的串流屏幕。请保留该屏幕，或在上方更改保护对象。");
                 var data = NativeDisplay.Query(true); var current = NativeDisplay.Monitors(data);
-                layoutMemory.Observe(data,current,connectionSettling.IsRunning && connectionSettling.ElapsedMilliseconds<12000); layoutMemory.Save();
+                layoutMemory.Observe(data,current,connectionSettling.IsRunning && connectionSettling.ElapsedMilliseconds<12000); layoutMemory.TrySave();
                 if (selected.Any(k => !current.Any(m => m.Key == k))) throw new InvalidOperationException("有屏幕已断开，请刷新列表。");
                 if (primaryKey==null && selected.SetEquals(current.Where(m => m.Active).Select(m => m.Key))) { RefreshMonitors(); status.Text = "当前已经是这个屏幕组合。"; return; }
                 var plan = layoutMemory.Plan(data,current,selected,NativeDisplay.Preferred,primaryKey);
@@ -307,7 +308,12 @@ namespace ScreenPilot
             NativeDisplay.RequireDevices(plan,pendingMonitors,connected);
             before = NativeDisplay.Capture(current,connected);
             if (before.Paths.Length == 0) throw new InvalidOperationException("无法备份当前屏幕配置，本次取消。");
-            pendingDir = Recovery.Start(before);
+            try { pendingDir = Recovery.Start(before); }
+            catch (Exception e)
+            {
+                // Without a writable recovery record the change could not be rolled back.
+                throw new InvalidOperationException("无法写入恢复记录（" + e.Message + "），为避免无法自动恢复，本次没有更改屏幕。" + DataHint);
+            }
             pendingLayout = plan; pendingTargets = plan.Paths.Select(NativeDisplay.TargetKey).ToArray(); recoveryPasses = 0;
             pendingPrimary=primaryKey;
             applying = true; SetBusy(true); ShowPanel();
@@ -351,12 +357,13 @@ namespace ScreenPilot
                 FinishPending();
                 try
                 {
-                    layoutMemory.Save();
+                    layoutMemory.TrySave();
                     NativeDisplay.SaveCurrent(expected,expectedLayout);
                     status.Text = "已保存屏幕组合。" + WindowRecovery.RecoverAll(Handle).Message;
                     recoveryTargets = expected; recoveryPasses = 2;
                 }
                 catch (Exception e) { status.Text = "已结束确认，但保存或找回窗口未完成：" + e.Message; }
+                status.Text += DataWarning();
             }
             catch (Exception e) { Error(e); }
         }
@@ -451,6 +458,18 @@ namespace ScreenPilot
             }
             catch { } // A display driver can briefly report no working area during a hot-plug.
             Activate(); BringToFront();
+        }
+        // The data folder is unwritable when the program folder carries a Low integrity label
+        // (sandbox or managed portable folder) or the profile is read-only. Explain it, because a
+        // bare "access is denied" hides that the screen list itself is still usable.
+        internal static string DataHint
+        {
+            get { return "屏幕管家把布局和恢复记录写在 " + LayoutMemory.DataFolder + "；请把程序放在普通文件夹（例如 C:\\Tools\\屏幕管家）中运行，或修复该目录的写入权限。"; }
+        }
+        internal static string DataWarning()
+        {
+            if (LayoutMemory.LastSaveError == null) return "";
+            return "\n布局记忆无法保存：" + LayoutMemory.LastSaveError + "。屏幕仍可查看和切换，但不会记住编号和排列。" + DataHint;
         }
         void Error(Exception e) { status.Text = e.Message; ShowPanel(); }
         protected override void WndProc(ref Message m)

@@ -2,7 +2,7 @@
 
 Windows 多屏管理工具，适合 Sunshine + Moonlight 串流和日常多屏切换。可以独立开启或停用显示输出、设置主屏幕，并查看屏幕类型与当前排列。
 
-当前程序版本：**1.7.0.0**。界面采用圆角卡片、滑动开关和托盘菜单。
+当前程序版本：**1.7.1.0**。界面采用圆角卡片、滑动开关和托盘菜单。
 
 [下载便携包](./屏幕管家-便携版.zip?raw=true) · [下载程序](./屏幕管家.exe?raw=true) · [完整使用说明](./使用说明.txt) · [Sunshine 串流指南](./docs/SUNSHINE.md)
 
@@ -90,6 +90,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -OutputName '_re
 ```powershell
 .\屏幕管家.exe --list "$env:TEMP\screen-list.txt"
 ```
+
+如果程序所在目录带 Windows 的“低完整性”标记（沙箱或受管目录），Windows 会以低完整性启动它，写入上面两个目录会被拒绝。1.7.1 起这种情况不再中断界面：屏幕列表、排列图和开关照常显示，状态栏说明原因；把程序放到普通文件夹（例如 `C:\Tools\屏幕管家`）或对该文件执行 `icacls "屏幕管家.exe" /setintegritylevel Medium` 后即可恢复布局记忆。恢复记录写不进去时，程序会取消本次切换，避免改了屏幕却无法自动恢复。
 
 反馈问题时，请附上 Windows 版本、显卡与驱动、屏幕类型、具体操作步骤，以及相关报错。报告中如含本机路径或设备标识，可先删去无关信息。
 

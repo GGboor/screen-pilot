@@ -53,6 +53,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 
 个人布局、Sunshine 配置、凭据、恢复目录和机器故障记录不随工程发布。`.gitignore` 排除了测试生成物及本机诊断文件；打包也应使用明确的文件清单，避免直接压缩整个工作目录。
 
+## 数据目录与完整性级别
+
+布局记忆（`%LOCALAPPDATA%\ScreenPilot\layout.xml`）和恢复记录（`…\Recovery\`）都是辅助数据，不是显示切换的前置条件：
+
+- `LayoutMemory.TrySave()` 捕获写入失败并记录到 `LastSaveError`，界面继续显示屏幕列表，状态栏追加原因；`Keep()` 只在真正需要提示时追加同一段说明。
+- 恢复记录写不进去时 `BeginChange` 主动取消切换，避免出现无法回滚的改屏。
+- 程序所在目录若带 Windows 低完整性标记，Windows 会以低完整性启动其中的 exe，写用户配置目录会被拒绝。确认方式：`icacls 屏幕管家.exe` 中是否出现 `Mandatory Label\Low Mandatory Level`；修复方式：`icacls 屏幕管家.exe /setintegritylevel Medium`，或把程序复制到普通目录运行。
+- 在该类目录中重新构建时，新生成的 exe 会继承目录的低完整性标记，需要再次执行上面的 `icacls` 命令；提交到 git 后检出的副本同样会继承目录标记。
+
 ## 主要接口参考
 
 - [QueryDisplayConfig](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-querydisplayconfig)

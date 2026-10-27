@@ -1,4 +1,4 @@
-屏幕管家 1.7
+屏幕管家 1.7.1
 
 运行环境：Windows 10/11 64 位，.NET Framework 4.x（Windows 11 通常已自带）。
 双击 屏幕管家.exe，在安装 Sunshine 的被串流电脑上运行。
@@ -111,6 +111,17 @@ before.xml 是带设备标识的恢复快照；restored 记录恢复结果；err
 只读导出屏幕列表：屏幕管家.exe --list "完整输出路径.txt"
 编译源码：powershell -ExecutionPolicy Bypass -File .\build.ps1
 自检：.\ScreenPilot.Tests.exe --inspect（不切换屏幕，只创建并移回测试窗口）
+
+“访问被拒绝”、看不到屏幕列表
+1.7.1 起，布局记忆写不进去不会再中断屏幕读取：列表、排列图和开关照常显示，
+状态栏会说明原因。常见原因是程序所在目录带“低完整性”标记（某些沙箱、托管或
+便携目录），Windows 会以低完整性启动其中的程序，无法写入 %LOCALAPPDATA%。
+处理办法（任选其一）：
+1. 把 屏幕管家.exe 复制到普通文件夹，例如 C:\Tools\屏幕管家，再运行该副本。
+2. 对该文件提升完整性级别：icacls "屏幕管家.exe" /setintegritylevel Medium
+   之后重新启动程序；用资源管理器查看文件属性不会显示此标记。
+3. 检查 %LOCALAPPDATA%\ScreenPilot 目录是否被设置为只读或缺少当前用户权限。
+恢复记录也写不进去时，程序会取消本次切换，避免改了屏幕却无法自动恢复。
 
 实现依据
 https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-querydisplayconfig

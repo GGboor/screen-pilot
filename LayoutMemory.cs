@@ -36,9 +36,35 @@ namespace ScreenPilot
         {
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(FileName));
             string temp=FileName+".tmp";
-            using(var file=File.Create(temp)) new XmlSerializer(typeof(LayoutMemory)).Serialize(file,this);
-            if(File.Exists(FileName)) File.Replace(temp,FileName,null); else File.Move(temp,FileName);
+            try
+            {
+                using(var file=File.Create(temp)) new XmlSerializer(typeof(LayoutMemory)).Serialize(file,this);
+                if(File.Exists(FileName)) File.Replace(temp,FileName,null); else File.Move(temp,FileName);
+            }
+            catch
+            {
+                try { if(File.Exists(temp)) File.Delete(temp); } catch { }
+                throw;
+            }
         }
+        // Remembering the layout is a convenience, not a precondition for listing or switching
+        // screens. A read-only, sandboxed or otherwise denied data folder must be reported to the
+        // caller instead of aborting the whole screen refresh.
+        public static string LastSaveError;
+        public bool TrySave()
+        {
+            try { Save(); LastSaveError=null; return true; }
+            catch(Exception e) { LastSaveError=Describe(e); return false; }
+        }
+        static string Describe(Exception e)
+        {
+            // Report the innermost reason: for a denied file it carries the exact path.
+            Exception last=e;
+            while(last.InnerException!=null) last=last.InnerException;
+            string text=last.Message;
+            return text.EndsWith("。") ? text.Substring(0,text.Length-1) : text;
+        }
+        public static string DataFolder { get { return System.IO.Path.GetDirectoryName(FileName); } }
         public static Mode Position(Mode m,int x,int y)
         {
             m.D1=(m.D1 & 0xffffffffUL) | ((ulong)unchecked((uint)x)<<32);
